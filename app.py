@@ -1,10 +1,12 @@
 # app.py
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from datetime import datetime
 from streaming_manager import StreamingManager
+from notification_manager import NotificationManager
 
 app = Flask(__name__)
 streaming_manager = StreamingManager()
+notification_manager = NotificationManager('secrets/serviceAccountKey.json')
 
 @app.route('/health')
 def health_check():
@@ -62,6 +64,39 @@ def stop_stream():
         "success": success,
         "message": message
     }), 200 if success else 500
+    
+@app.route('/send-fire-alert', methods=['POST'])
+def send_fire_alert():
+    try:
+        data = request.json
+        fcm_token = data.get('fcm_token')
+        
+        if not fcm_token:
+            return jsonify({
+                'success': False,
+                'error': 'FCM token is required'
+            }), 400
+
+        success, response = notification_manager.send_fire_alert(fcm_token)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Fire alert sent successfully',
+                'response': response
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': response
+            }), 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
